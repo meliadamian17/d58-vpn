@@ -10,9 +10,9 @@ import (
 // Tunnel represents an active VPN session.
 type Tunnel struct {
 	ClientAddr string
-	Conn       net.Conn          // The TCP/TLS connection
+	Conn       net.Conn           // The TCP/TLS connection
 	Tun        io.ReadWriteCloser // The TUN/TAP interface
-	// TODO: maybe add fields for encryption fields if using crypto 
+	Done       chan struct{}      // Closed when tunnel ends
 }
 
 // NewTunnel creates a new Tunnel instance.
@@ -21,6 +21,7 @@ func NewTunnel(conn net.Conn, tun io.ReadWriteCloser) *Tunnel {
 		ClientAddr: conn.RemoteAddr().String(),
 		Conn:       conn,
 		Tun:        tun,
+		Done:       make(chan struct{}),
 	}
 }
 
@@ -37,35 +38,50 @@ func (t *Tunnel) Start() {
 
 // netToTun reads encrypted/encapsulated packets from the network, decapsulates them, and writes to TUN.
 func (t *Tunnel) netToTun() {
-	defer t.Conn.Close()
-	// defer t.Tun.Close() // Typically we don't close TUN on single client disconnect in server mode, but for 1:1 we might.
+	defer func() {
+		// Close the connection to stop the other goroutine
+		t.Conn.Close()
+		// Signal completion
+		select {
+		case <-t.Done:
+		default:
+			close(t.Done)
+		}
+	}()
 
 	for {
 		// 1. Read Packet from Network
 		packet, err := protocol.ReadPacket(t.Conn)
 		if err != nil {
-			log.Printf("Error reading from network: %v", err)
+			// Normal disconnect or error
+			// log.Printf("Network read error: %v", err)
 			return
 		}
 
-		// TODO: Decrypt payload if using custom encryption (NaCl/AES)
-		// decrypted := decrypt(packet.Payload)
-
-		// 2. Write to TUN
-		// TODO: Handle IP packet verification/filtering
-		_, err = t.Tun.Write(packet.Payload)
-		if err != nil {
-			log.Printf("Error writing to TUN: %v", err)
-			return
+		if packet.Header.Type == protocol.MsgTypeData {
+			// 2. Write to TUN
+			_, err = t.Tun.Write(packet.Payload)
+			if err != nil {
+				log.Printf("Error writing to TUN: %v", err)
+				return
+			}
 		}
+		// Ignore KeepAlive or Handshake in data stream
 	}
 }
 
 // tunToNet reads raw IP packets from TUN, encapsulates them, and writes to the network.
 func (t *Tunnel) tunToNet() {
-	defer t.Conn.Close()
+	defer func() {
+		t.Conn.Close()
+		select {
+		case <-t.Done:
+		default:
+			close(t.Done)
+		}
+	}()
 
-	buf := make([]byte, 1500) // Standard MTU
+	buf := make([]byte, 2000) 
 	for {
 		// 1. Read from TUN
 		n, err := t.Tun.Read(buf)
@@ -73,9 +89,6 @@ func (t *Tunnel) tunToNet() {
 			log.Printf("Error reading from TUN: %v", err)
 			return
 		}
-
-		// TODO: Encrypt payload if using custom encryption (NaCl/AES)
-		// encrypted := encrypt(buf[:n])
 
 		packetData, err := protocol.Encapsulate(protocol.MsgTypeData, buf[:n])
 		if err != nil {
@@ -90,4 +103,3 @@ func (t *Tunnel) tunToNet() {
 		}
 	}
 }
-
