@@ -16,7 +16,6 @@ import (
 )
 
 func main() {
-	// 1. Parse Arguments
 	serverAddr := flag.String("server", "localhost:443", "VPN Server address (host:port)")
 	flag.Parse()
 
@@ -33,7 +32,7 @@ func main() {
 
 	// 2. Configure TLS
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true, // TODO: Use CA in production
+		InsecureSkipVerify: true, // since we're using self-signed certs, want to ignore these things 
 	}
 
 	// 3. Connect to Server
@@ -64,7 +63,7 @@ func main() {
 	}
 	defer tunDevice.Close()
 
-	// 6. Setup Routing (The "Kill Switch")
+	// 6. Setup Routing 
 	gwIP, gwIfName, err := nettools.GetDefaultGateway()
 	if err != nil {
 		log.Printf("Warning: Could not detect default gateway: %v. Routing might fail.", err)
@@ -85,10 +84,8 @@ func main() {
 				netlink.RouteDel(serverRoute)
 			}
 		}
-		// TUN routes (0.0.0.0/1, 128.0.0.0/1) disappear when TUN closes.
 	}
 
-	// Handle Interrupts
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -100,10 +97,11 @@ func main() {
 
 	if gwIfName != "" {
 		log.Printf("Current Gateway: %s on %s", gwIP, gwIfName)
-		// Apply VPN Routes
-		if err := applyVPNRoutes(gwIP, gwIfName, serverIP, tunName); err != nil {
-			log.Fatalf("Failed to apply VPN routes: %v", err)
-		}
+	}
+
+	// Apply VPN Routes
+	if err := applyVPNRoutes(gwIP, gwIfName, serverIP, tunName); err != nil {
+		log.Fatalf("Failed to apply VPN routes: %v", err)
 	}
 
 	// 7. Start Tunnel
@@ -117,19 +115,21 @@ func main() {
 }
 
 func applyVPNRoutes(oldGw net.IP, oldGwIf string, serverIP net.IP, tunName string) error {
-	// 1. Add route to VPN Server via old Gateway
-	oldLink, err := netlink.LinkByName(oldGwIf)
-	if err != nil {
-		return err
-	}
+	// 1. Add route to VPN Server via old Gateway (ONLY if we have a gateway)
+	if oldGwIf != "" {
+		oldLink, err := netlink.LinkByName(oldGwIf)
+		if err != nil {
+			return err
+		}
 
-	serverRoute := &netlink.Route{
-		Dst:       &net.IPNet{IP: serverIP, Mask: net.CIDRMask(32, 32)},
-		Gw:        oldGw,
-		LinkIndex: oldLink.Attrs().Index,
-	}
-	if err := netlink.RouteAdd(serverRoute); err != nil {
-		log.Printf("Note: Failed to add server route (might exist): %v", err)
+		serverRoute := &netlink.Route{
+			Dst:       &net.IPNet{IP: serverIP, Mask: net.CIDRMask(32, 32)},
+			Gw:        oldGw,
+			LinkIndex: oldLink.Attrs().Index,
+		}
+		if err := netlink.RouteAdd(serverRoute); err != nil {
+			log.Printf("Note: Failed to add server route (might exist): %v", err)
+		}
 	}
 
 	// 2. Add default route override (Def1)
@@ -166,7 +166,6 @@ func applyVPNRoutes(oldGw net.IP, oldGwIf string, serverIP net.IP, tunName strin
 		LinkIndex: tunLink.Attrs().Index,
 	}
 	// This might overlap with the 0/1 and 128/1 routes, but explicit is good.
-	// Actually, 10.8.x.x is covered by 0.0.0.0/1, so this is optional, but harmless.
 	if err := netlink.RouteAdd(r3); err != nil {
 		// Ignore if exists
 	}

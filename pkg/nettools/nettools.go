@@ -16,7 +16,7 @@ func CreateTUN(name string, ipCIDR string) (*water.Interface, netlink.Link, erro
 		DeviceType: water.TUN,
 	}
 	config.PlatformSpecificParams = water.PlatformSpecificParams{
-		InterfaceName: name,
+		Name: name,
 	}
 
 	ifce, err := water.New(config)
@@ -29,7 +29,6 @@ func CreateTUN(name string, ipCIDR string) (*water.Interface, netlink.Link, erro
 		return nil, nil, fmt.Errorf("failed to get link for %s: %v", ifce.Name(), err)
 	}
 
-	// Parse IP
 	ip, ipNet, err := net.ParseCIDR(ipCIDR)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid IP/CIDR %s: %v", ipCIDR, err)
@@ -41,17 +40,14 @@ func CreateTUN(name string, ipCIDR string) (*water.Interface, netlink.Link, erro
 		},
 	}
 
-	// Add IP address
 	if err := netlink.AddrAdd(link, addr); err != nil {
 		return nil, nil, fmt.Errorf("failed to add address to link: %v", err)
 	}
 
-	// Set MTU to 1300 to avoid fragmentation inside the tunnel
 	if err := netlink.LinkSetMTU(link, 1300); err != nil {
 		return nil, nil, fmt.Errorf("failed to set MTU: %v", err)
 	}
 
-	// Set interface up
 	if err := netlink.LinkSetUp(link); err != nil {
 		return nil, nil, fmt.Errorf("failed to set link up: %v", err)
 	}
@@ -60,10 +56,7 @@ func CreateTUN(name string, ipCIDR string) (*water.Interface, netlink.Link, erro
 }
 
 // EnableIPForwarding enables IPv4 forwarding via sysctl.
-// This is required for the server to act as a router.
 func EnableIPForwarding() error {
-	// Using direct file write is safer/simpler than shelling out sometimes,
-	// but sysctl command is standard.
 	cmd := exec.Command("sysctl", "-w", "net.ipv4.ip_forward=1")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to enable ip forwarding: %v, output: %s", err, out)

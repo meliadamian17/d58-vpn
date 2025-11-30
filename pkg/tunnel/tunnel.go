@@ -38,7 +38,9 @@ func (t *Tunnel) Start() {
 
 // netToTun reads encrypted/encapsulated packets from the network, decapsulates them, and writes to TUN.
 func (t *Tunnel) netToTun() {
+	log.Println("netToTun routine started")
 	defer func() {
+		log.Println("netToTun routine exiting")
 		// Close the connection to stop the other goroutine
 		t.Conn.Close()
 		// Signal completion
@@ -54,7 +56,7 @@ func (t *Tunnel) netToTun() {
 		packet, err := protocol.ReadPacket(t.Conn)
 		if err != nil {
 			// Normal disconnect or error
-			// log.Printf("Network read error: %v", err)
+			log.Printf("Network read error: %v", err)
 			return
 		}
 
@@ -72,7 +74,9 @@ func (t *Tunnel) netToTun() {
 
 // tunToNet reads raw IP packets from TUN, encapsulates them, and writes to the network.
 func (t *Tunnel) tunToNet() {
+	log.Println("tunToNet routine started")
 	defer func() {
+		log.Println("tunToNet routine exiting")
 		t.Conn.Close()
 		select {
 		case <-t.Done:
@@ -83,7 +87,6 @@ func (t *Tunnel) tunToNet() {
 
 	buf := make([]byte, 2000) 
 	for {
-		// 1. Read from TUN
 		n, err := t.Tun.Read(buf)
 		if err != nil {
 			log.Printf("Error reading from TUN: %v", err)

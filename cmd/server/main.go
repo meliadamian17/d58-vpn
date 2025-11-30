@@ -176,12 +176,11 @@ func (s *ServerConfig) handleClient(conn net.Conn) {
 
 	log.Printf("Assigned IP: %s", clientIP.String())
 
-	// Send Handshake (Assigned IP)
 	ipConfig := fmt.Sprintf("%s/24", clientIP.String())
 	handshakePacket, _ := protocol.Encapsulate(protocol.MsgTypeHandshake, []byte(ipConfig))
 	conn.Write(handshakePacket)
 
-	// Read Loop (Client -> TUN)
+	// Read Loop
 	for {
 		packet, err := protocol.ReadPacket(conn)
 		if err != nil {
@@ -216,7 +215,7 @@ func handleRelay(srcConn net.Conn, forwardAddr string) {
 
 	log.Printf("Relaying connection: %s -> %s", srcConn.RemoteAddr(), forwardAddr)
 
-	// Bidirectional Copy
+	// Our Bidirectional Copy
 	// Since we are relaying the VPN Protocol stream (Packets), we don't need to parse them.
 	// We just copy raw bytes. The TLS layer handles the encryption for this hop.
 	// srcConn is already decrypted by our listener, so we are reading plaintext VPN Packets.
