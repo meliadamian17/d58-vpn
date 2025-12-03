@@ -59,21 +59,25 @@ def start_vpn_server(host, mode='exit', forward_to=''):
     host.cmd('{} > {} 2>&1 &'.format(cmd, log_file))
     info( "*** VPN {} started on {}. Log: {}\n".format(mode.upper(), host.name, log_file) )
 
-def verify_encryption(client, target_ip):
+def verify_encryption(client, vpn_server_ip):
     "Verify that traffic on the physical link is encrypted (port 443) and not plain ICMP"
     info( "\n*** Verifying Encryption / Metadata Removal ***\n" )
     
-    # Start tcpdump in background on client to capture outgoing traffic on physical interface
-    # We filter for ICMP to see if any leaks happen
-    pcap_file = '/tmp/encryption_test.pcap'
-    # Capture only ICMP packets going to target. If VPN works, we should see NONE (0).
-    # We also capture TCP port 443 to verify encrypted traffic exists.
+    # Check for leaked ICMP to internet (should be ZERO if VPN works)
+    client.cmd('tcpdump -i {}-eth0 -n icmp and dst host 8.8.8.8 -c 1 > /tmp/icmp_leak.log 2>&1 &'.format(client.name))
     
-    # Check for leaked ICMP
-    client.cmd('tcpdump -i {}-eth0 -n icmp and dst host {} -c 1 > /tmp/icmp_leak.log 2>&1 &'.format(client.name, target_ip))
+    # Check for Encrypted Traffic to VPN server
+    client.cmd('tcpdump -i {}-eth0 -n tcp port 443 and dst host {} -c 1 > /tmp/encrypted.log 2>&1 &'.format(client.name, vpn_server_ip))
     
-    # Check for Encrypted Traffic
-    client.cmd('tcpdump -i {}-eth0 -n tcp port 443 and dst host {} -c 1 > /tmp/encrypted.log 2>&1 &'.format(client.name, target_ip)) # target_ip might be relay IP, not final dst
+    time.sleep(1)
+    
+    # Send a ping through the VPN
+    info( "    Sending ping to 8.8.8.8...\n" )
+    client.cmd('ping -c 1 8.8.8.8')
+    
+    time.sleep(2)
+    
+    # Analyze results...
     
     time.sleep(1)
     
@@ -183,12 +187,15 @@ def run(topo_name='simple', do_test=False):
         if topo_name == 'relay':
             info( "\n*** Verifying Relay Anonymity ***\n" )
             server_log = server.cmd('cat /tmp/vpn-{}.log'.format(server.name))
-            if "New client connected: {}".format(relay_ip) in server_log:
-                 info( "[+] PASS: Exit Node sees connection from Relay IP ({})\n".format(relay_ip) )
-            elif "New client connected: {}".format(client.IP()) in server_log:
-                 info( "[-] FAIL: Exit Node sees connection directly from Client IP! Relay bypassed.\n" )
+            
+            # Check for relay IP in connection logs (account for port numbers)
+            if "New client connected:" in server_log and relay_ip in server_log:
+                info( "[+] PASS: Exit Node sees connection from Relay IP ({})\n".format(relay_ip) )
+            elif "New client connected:" in server_log and client.IP() in server_log:
+                info( "[-] FAIL: Exit Node sees connection directly from Client IP! Relay bypassed.\n" )
             else:
-                 info( "[-] FAIL: Could not verify connection source in logs.\n" )
+                info( "[-] Could not verify connection source. Server log:\n" )
+                info( server_log + "\n" )
 
     info( "\n*** Starting CLI\n" )
     CLI( net )

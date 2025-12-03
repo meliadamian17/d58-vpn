@@ -43,18 +43,25 @@ Once you are inside the Docker container shell (`root@<id>:/app#`), follow these
 
 ## 3. Verifying the VPN
 
-Perform the following steps inside the `mininet>` CLI to confirm the VPN works and traffic is routed securely.
+The topology script automatically starts the VPN client and establishes the tunnel. Once you see the Mininet CLI prompt (`mininet>`), the VPN should already be active. Follow these steps to verify everything is working correctly.
 
-### Step A: Start the VPN Client
-Start the client on host `h2` connecting to the server on `h1` (`10.0.0.1`). We run it in the background (`&`) so we can keep using the CLI.
-
+### Step A: Verify Client Connection
+Check that the VPN client successfully connected and received a tunnel IP.
 ```bash
-mininet> h2 /usr/local/bin/vpn-client -server 10.0.0.1:443 &
+mininet> h2 ip addr show tun0
 ```
 
-*Expected Output:* You should see logs indicating:
-- "Connected to VPN server"
-- "Assigned IP: 10.8.0.x"
+*Expected Output:*
+You should see the `tun0` interface in the UP state with an assigned IP address like `10.8.0.2/24`.
+
+**Optional:** View the detailed client logs:
+```bash
+mininet> h2 cat /tmp/vpn-client.log
+```
+
+*You should see:*
+- "Connected to VPN server. Waiting for handshake..."
+- "Assigned IP: 10.8.0.x/24"
 - "Routes applied. Traffic is now tunneling."
 
 ### Step B: Verify Routing (Kill Switch)
@@ -71,7 +78,7 @@ You should see routes for `0.0.0.0/1` and `128.0.0.0/1` pointing to interface **
 Trace the path to an internet address (e.g., Google DNS `8.8.8.8`).
 
 ```bash
-mininet> h2 traceroute -n 8.8.8.8
+mininet> h2 traceroute -I 8.8.8.8
 ```
 
 *Expected Output:*

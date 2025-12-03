@@ -3,20 +3,20 @@ FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-    mininet \
-    openvswitch-switch \
-    openvswitch-testcontroller \
-    python2 \
-    python-is-python2 \
-    iproute2 \
-    iptables \
-    iputils-ping \
-    iputils-tracepath \
-    traceroute \
-    net-tools \
-    tcpdump \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+  mininet \
+  openvswitch-switch \
+  openvswitch-testcontroller \
+  python2 \
+  python-is-python2 \
+  iproute2 \
+  iptables \
+  iputils-ping \
+  iputils-tracepath \
+  traceroute \
+  net-tools \
+  tcpdump \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -26,6 +26,8 @@ RUN ln -s /usr/bin/ovs-testcontroller /usr/bin/controller
 
 COPY bin/server /usr/local/bin/vpn-server
 COPY bin/client /usr/local/bin/vpn-client
+RUN chmod +x /usr/local/bin/vpn-server
+RUN chmod +x /usr/local/bin/vpn-client
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
