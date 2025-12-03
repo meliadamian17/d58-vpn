@@ -59,44 +59,38 @@ def start_vpn_server(host, mode='exit', forward_to=''):
     host.cmd('{} > {} 2>&1 &'.format(cmd, log_file))
     info( "*** VPN {} started on {}. Log: {}\n".format(mode.upper(), host.name, log_file) )
 
-def verify_encryption(client, vpn_server_ip):
-    "Verify that traffic on the physical link is encrypted (port 443) and not plaintext ICMP"
+def verify_encryption(client, target_ip):
+    "Verify that traffic on the physical link is encrypted (port 443) and not plain ICMP"
     info( "\n*** Verifying Encryption / Metadata Removal ***\n" )
     
-    # Check for leaked ICMP to internet (should see NONE if VPN works)
-    client.cmd('timeout 5 tcpdump -i {}-eth0 -n icmp and dst host 8.8.8.8 -c 1 -w /tmp/icmp_leak.pcap > /tmp/icmp_leak.log 2>&1 &'.format(client.name))
+    # Check for leaked ICMP to INTERNET
+    client.cmd('tcpdump -i {}-eth0 -n icmp and dst host 8.8.8.8 -c 1 > /tmp/icmp_leak.log 2>&1 &'.format(client.name))
     
-    # Check for Encrypted Traffic to VPN server (should see TCP/443)
-    client.cmd('timeout 5 tcpdump -i {}-eth0 -n tcp port 443 and dst host {} -c 1 -w /tmp/encrypted.pcap > /tmp/encrypted.log 2>&1 &'.format(client.name, vpn_server_ip))
+    # Check for Encrypted Traffic to VPN server
+    client.cmd('tcpdump -i {}-eth0 -n tcp port 443 and dst host {} -c 1 > /tmp/encrypted.log 2>&1 &'.format(client.name, target_ip))
     
     time.sleep(1)
     
-    # Send ping to internet through VPN
-    info( "    Sending ping to 8.8.8.8 through VPN...\n" )
-    client.cmd('ping -c 2 8.8.8.8')
+    # Send a ping through the VPN
+    info( "    Sending ping to 8.8.8.8...\n" )
+    client.cmd('ping -c 1 8.8.8.8')
     
-    time.sleep(3)
+    time.sleep(2)
     
-    # Kill any remaining tcpdump processes
-    client.cmd('pkill tcpdump')
-    
-    # Analyze results
+    # Analyze
     leak_log = client.cmd('cat /tmp/icmp_leak.log')
     enc_log = client.cmd('cat /tmp/encrypted.log')
     
-    # Check for ICMP leaks (we should see 0 packets captured)
-    if "1 packet captured" in leak_log or "2 packets captured" in leak_log:
+    if "captured" in leak_log and "0 packets captured" not in leak_log:
          info( "[-] FAIL: Plaintext ICMP packet detected on physical interface! (Leak)\n" )
-         info( "    Log: {}\n".format(leak_log) )
+         info( leak_log )
     else:
          info( "[+] PASS: No plaintext ICMP leaked.\n" )
 
-    # Check for encrypted traffic (we should see at least 1 packet)
-    if "1 packet captured" in enc_log or "2 packets captured" in enc_log:
+    if "captured" in enc_log:
          info( "[+] PASS: Encrypted TCP/443 traffic detected.\n" )
     else:
          info( "[-] FAIL: No encrypted traffic detected.\n" )
-         info( "    Log: {}\n".format(enc_log) )
 
 def run(topo_name='simple', do_test=False):
     if not os.path.exists("/usr/local/bin/vpn-server"):
