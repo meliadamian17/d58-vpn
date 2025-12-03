@@ -1,4 +1,29 @@
 # D58 VPN Project 
+## 📘 Project Description
+
+A **Virtual Private Network (VPN)** creates a secure, encrypted tunnel between clients and a server, enabling private communication over untrusted networks.  
+This project implements a simplified VPN system that demonstrates core networking and security concepts from **CSCD58**.
+
+The implementation focuses on:
+
+- **Point-to-point encrypted communication**  
+- **IP packet encapsulation**  
+- **Tunnel creation and management**
+
+By bridging theoretical concepts with hands-on development, this project showcases core principles of **protocol design**, **encryption**, **authentication**, and **packet processing** within a secure networked environment.
+
+## 🎯 Specific Goals and Targets
+
+- Implement a **TLS/SSL-based encrypted tunnel** between the client and server  
+- Design and implement a **custom tunneling protocol** for encapsulating IP packets  
+- Develop **authentication mechanisms** (certificate-based and credential-based)  
+- Create **packet routing and forwarding logic** within the encrypted tunnel  
+- Implement **connection management** and **session lifecycle handling**  
+- Build a **configuration system** for VPN clients and servers  
+- Develop **monitoring and diagnostic tools** for tunnel status and traffic analysis  
+- Demonstrate the system with **multiple clients** connecting through a **single VPN server**
+
+---
 
 This guide provides step-by-step instructions to set up, run, and verify the D58 VPN project using Docker and Mininet.
 
