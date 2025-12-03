@@ -37,12 +37,18 @@ This guide provides step-by-step instructions to set up, run, and verify the D58
 
 We have provided a portable script that handles the building of the Docker image and starting the container with the necessary privileges.
 
-1. Open your terminal 
-2. Run the startup script:
+1. Open your terminal
+2. Clone the repository
+    ```bash
+    git clone https://github.com/meliadamian17/d58-vpn.git
+    ```
+3. Run the startup script:
 
    **Bash / WSL / Linux:**
    ```bash
-   ./run.sh
+   cd d58-vpn
+   chmod +x ./run.sh
+   sudo ./run.sh
    ```
    *(Note: This builds the `vpn-mininet` Docker image if it doesn't exist and drops you into a shell inside the container).*
 
